@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Electronic Circuit Drawer</title>
+  <style>
+    canvas {
+      border: 1px solid black;
+      cursor: crosshair;
+    }
+    .toolbar {
+      margin-bottom: 10px;
+    }
+    button, select, input {
+      margin-right: 5px;
+    }
+    #componentDetails {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      padding: 10px;
+      display: none;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    #componentDetails input {
+      margin: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button id="lineTool">Wire</button>
+    <button id="resistorTool">Resistor</button>
+    <button id="capacitorTool">Capacitor</button>
+    <button id="diodeTool">Diode</button>
+    <button id="transistorTool">Transistor</button>
+    <button id="ledTool">LED</button>
+    <button id="groundTool">Ground</button>
+    <button id="vccTool">VCC (Voltage Source)</button>
+    <button id="clearCanvas">Clear</button>
+    <button id="saveImage">Save as Image</button>
+    <button id="saveJSON">Save as JSON</button>
+    <button id="loadJSON">Load JSON</button>
+  </div>
+
+  <canvas id="circuitCanvas" width="800" height="600"></canvas>
+
+  <!-- Component Details Form -->
+  <div id="componentDetails">
+    <h3>Component Details</h3>
+    <label for="value">Value:</label>
+    <input type="text" id="value" placeholder="Enter value">
+    <button id="updateDetails">Update</button>
+    <button id="closeDetails">Close</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("circuitCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let tool = "line"; // Default tool (wire)
+    let components = []; // Array to store components and wires
+    let currentWire = null; // Temporarily stores the wire being drawn
+    let isPlacing = false;
+    const gridSize = 20;
+
+    // Draw grid on the canvas
+    function drawGrid() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#e0e0e0";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+    }
+
+    // Snap coordinates to the grid
+    function snapToGrid(value) {
+      return Math.round(value / gridSize) * gridSize;
+    }
+
+    // Redraw the canvas with all components
+    function redrawComponents() {
+      drawGrid();
+      components.forEach(drawComponent);
+      // Draw the current wire if it's being placed
+      if (currentWire) {
+        ctx.strokeStyle = "#0000FF"; // Temporary wire in blue
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(currentWire.startX, currentWire.startY);
+        ctx.lineTo(currentWire.endX, currentWire.endY);
+        ctx.stroke();
+      }
+    }
+
+    // Draw a component
+    function drawComponent(comp) {
+      switch (comp.tool) {
+        case "line": {
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(comp.startX, comp.startY);
+          ctx.lineTo(comp.endX, comp.endY);
+          ctx.stroke();
+          break;
+        }
+        case "resistor": {
+          drawResistor(comp.x, comp.y, comp.value || "10k");
+          break;
+        }
+        case "capacitor": {
+          drawCapacitor(comp.x, comp.y);
+          break;
+        }
+        case "diode": {
+          drawDiode(comp.x, comp.y);
+          break;
+        }
+        case "vcc": {
+          drawVCC(comp.x, comp.y, comp.value || "5V");
+          break;
+        }
+        case "ground": {
+          drawGround(comp.x, comp.y);
+          break;
+        }
+        case "transistor": {
+          drawTransistor(comp.x, comp.y);
+          break;
+        }
+        case "led": {
+          drawLED(comp.x, comp.y);
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    // Draw resistor
+    function drawResistor(x, y, value) {
+      const width = 40, height = 10;
+      ctx.strokeStyle = "#000";
+      ctx.fillStyle = "#FFD700";
+      ctx.fillRect(x - width / 2, y - height / 2, width, height);
+      ctx.strokeRect(x - width / 2, y - height / 2, width, height);
+      ctx.fillStyle = "#000";
+      ctx.fillText(value, x - width / 2 + 5, y + height + 10);
+    }
+
+    // Draw capacitor
+    function drawCapacitor(x, y) {
+      ctx.strokeStyle = "#000";
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y);
+      ctx.lineTo(x + 10, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - 5, y - 10);
+      ctx.lineTo(x - 5, y + 10);
+      ctx.stroke();
+      ctx.moveTo(x + 5, y - 10);
+      ctx.lineTo(x + 5, y + 10);
+      ctx.stroke();
+    }
+
+    // Draw diode
+    function drawDiode(x, y) {
+      ctx.strokeStyle = "#000";
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y);
+      ctx.lineTo(x + 10, y);
+      ctx.moveTo(x, y - 10);
+      ctx.lineTo(x + 10, y);
+      ctx.lineTo(x, y + 10);
+      ctx.stroke();
+    }
+
+    // Draw voltage source (VCC)
+    function drawVCC(x, y, value) {
+      ctx.strokeStyle = "#000";
+      ctx.beginPath();
+      ctx.arc(x, y, 10, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillText(value, x - 10, y + 20);
+    }
+
+    // Draw ground symbol
+    function drawGround(x, y) {
+      ctx.strokeStyle = "#000";
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y);
+      ctx.lineTo(x + 10, y);
+      ctx.stroke();
+      ctx.moveTo(x - 10, y + 10);
+      ctx.lineTo(x + 10, y + 10);
+      ctx.stroke();
+      ctx.moveTo(x, y + 20);
+      ctx.lineTo(x, y + 30);
+      ctx.stroke();
+    }
+
+    // Draw transistor (simple NPN symbol)
+    function drawTransistor(x, y) {
+      const width = 15, height = 30;
+      ctx.strokeStyle = "#000";
+      ctx.beginPath();
+      // Base
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y - height);
+      // Collector
+      ctx.moveTo(x - 10, y - height / 2);
+      ctx.lineTo(x + 10, y - height / 2);
+      ctx.moveTo(x, y - height);
+      ctx.lineTo(x + 5, y - 5);
+      ctx.stroke();
+    }
+
+    // Draw LED (simple representation)
+    function drawLED(x, y) {
+      ctx.strokeStyle = "#000";
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y);
+      ctx.lineTo(x + 10, y);
+      ctx.stroke();
+      ctx.fillStyle = "red";
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Event listener for tool selection
+    document.getElementById("lineTool").addEventListener("click", () => {
+      tool = "line";
+      isPlacing = false;
+      currentWire = null;
+    });
+
+    document.getElementById("resistorTool").addEventListener("click", () => {
+      tool = "resistor";
+      isPlacing = false;
+      currentWire = null;
+    });
+
+    document.getElementById("capacitorTool").addEventListener("click", () => {
+      tool = "capacitor";
+      isPlacing = false;
+      currentWire = null;
+    });
+
+    document.getElementById("diodeTool").addEventListener("click", () => {
+      tool = "diode";
+      isPlacing = false;
+      currentWire = null;
+    });
+
+    document.getElementById("transistorTool").addEventListener("click", () => {
+      tool = "transistor";
+      isPlacing = false;
+      currentWire = null;
+    });
+
+    document.getElementById("ledTool").addEventListener("click", () => {
+      tool = "led";
+      isPlacing = false;
+      currentWire = null;
+    });
+
+    document.getElementById("groundTool").addEventListener("click", () => {
+      tool = "ground";
+      isPlacing = false;
+      currentWire = null;
+    });
+
+    document.getElementById("vccTool").addEventListener("click", () => {
+      tool = "vcc";
+      isPlacing = false;
+      currentWire = null;
+    });
+
+    // Handle the canvas click event to place components and wires
+    canvas.addEventListener("click", (e) => {
+      const x = snapToGrid(e.offsetX);
+      const y = snapToGrid(e.offsetY);
+
+      if (tool === "line") {
+        if (isPlacing) {
+          currentWire.endX = x;
+          currentWire.endY = y;
+          components.push(currentWire); // Save the wire
+          isPlacing = false;
+          currentWire = null;
+        } else {
+          currentWire = { tool: "line", startX: x, startY: y, endX: x, endY: y };
+          isPlacing = true;
+        }
+      } else {
+        components.push({ tool: tool, x, y });
+      }
+      redrawComponents();
+    });
+
+    // Handle mouse move to draw wires dynamically
+    canvas.addEventListener("mousemove", (e) => {
+      if (isPlacing && currentWire) {
+        const x = snapToGrid(e.offsetX);
+        const y = snapToGrid(e.offsetY);
+        currentWire.endX = x;
+        currentWire.endY = y;
+        redrawComponents();
+      }
+    });
+
+    // Handle clear canvas
+    document.getElementById("clearCanvas").addEventListener("click", () => {
+      components = [];
+      redrawComponents();
+    });
+
+    // Handle save as image
+    document.getElementById("saveImage").addEventListener("click", () => {
+      const dataURL = canvas.toDataURL();
+      const link = document.createElement("a");
+      link.href = dataURL;
+      link.download = "circuit.png";
+      link.click();
+    });
+
+    // Handle save as JSON
+    document.getElementById("saveJSON").addEventListener("click", () => {
+      const json = JSON.stringify(components);
+      const blob = new Blob([json], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "circuit.json";
+      link.click();
+    });
+
+    // Handle load JSON
+    document.getElementById("loadJSON").addEventListener("click", () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json";
+      input.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            components = JSON.parse(event.target.result);
+            redrawComponents();
+          };
+          reader.readAsText(file);
+        }
+      });
+      input.click();
+    });
+
+    // Initial setup
+    drawGrid();
+  </script>
+</body>
+</html>
